@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-random-todo",
 	"name": "Random To-Do",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"minAppVersion": "0.12.10",
 	"description": "Open a random file containing your custom to-do marker, or a random marker at its position",
 	"author": "NatiAris",

@@ -1,47 +1,41 @@
-import {App, EditorPosition, FileSystemAdapter, MarkdownView, Plugin, PluginSettingTab, Setting} from 'obsidian';
-import {readFileSync} from 'fs';
-import {randomInt} from "crypto";
-import * as path from "path";
+import {App, EditorPosition, MarkdownView, Plugin, PluginSettingTab, Setting} from 'obsidian';
 
-interface MyPluginSettings {
+interface RandomTodoPluginSettings {
     todoPattern: string;
     showStatusBar: boolean;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
+const DEFAULT_SETTINGS: RandomTodoPluginSettings = {
     todoPattern: '(^|\\s)\\.\\.\\.(\\s|$)',
     showStatusBar: false
 }
 
-export default class MyPlugin extends Plugin {
-    settings: MyPluginSettings;
+export default class RandomTodoPlugin extends Plugin {
+    settings: RandomTodoPluginSettings;
     statusBarItem: HTMLElement;
 
-    collectTodos = (): Map<string, Array<EditorPosition>> => {
+    collectTodos = async (): Promise<Map<string, Array<EditorPosition>>> => {
         // return a map file name -> list of match positions
         const markdownFiles = this.app.vault.getMarkdownFiles();
         const collected = new Map<string, Array<EditorPosition>>(null);
 
-        if (this.app.vault.adapter instanceof FileSystemAdapter) {
-            let basePath = this.app.vault.adapter.getBasePath();
-
-            for (const markdownFile of markdownFiles) {
-                const re = new RegExp(this.settings.todoPattern, 'g');
-                const fullPath = path.join(basePath, markdownFile.path);
-                const file = readFileSync(fullPath, 'utf-8');
-                const lines = file.split('\n');
-                const positions: Array<EditorPosition> = lines.map((value, index) => ({
-                    line: index,
-                    ch: value.search(re)
-                })).filter(value => value.ch != -1);
-                if (positions.length > 0) {
-                    collected.set(markdownFile.path, positions);
-                }
+        for (const markdownFile of markdownFiles) {
+            const re = new RegExp(this.settings.todoPattern, 'g');
+            const contents = await this.app.vault.cachedRead(markdownFile)
+            const lines = contents.split('\n');
+            const positions: Array<EditorPosition> = lines.map((value, index) => ({
+                line: index,
+                ch: value.search(re)
+            })).filter(value => value.ch != -1);
+            if (positions.length > 0) {
+                collected.set(markdownFile.path, positions);
             }
         }
 
         return collected;
     };
+
+    randomInt = (max: number) => Math.floor(Math.random() * max);
 
     async onload() {
         console.log('loading plugin');
@@ -51,13 +45,11 @@ export default class MyPlugin extends Plugin {
         if (this.settings.showStatusBar) {
             this.statusBarItem = this.addStatusBarItem();
             this.app.workspace.on("file-open", (file) => {
-                if (this.app.vault.adapter instanceof FileSystemAdapter) {
-                    let basePath = this.app.vault.adapter.getBasePath();
-                    const contents = readFileSync(basePath + '/' + file.path, 'utf-8');
+                this.app.vault.cachedRead(file).then(contents => {
                     const N = [...contents.matchAll(new RegExp(this.settings.todoPattern, 'g'))].length;
                     const text = N > 0 ? N + ' to-do items' : '';
                     this.statusBarItem.setText(text);
-                }
+                })
             })
         }
 
@@ -65,10 +57,11 @@ export default class MyPlugin extends Plugin {
             id: 'open-random-todo-file',
             name: 'Random Todo: File',
             callback: () => {
-                const collected = this.collectTodos();
-                const collectedLinks = [...collected.keys()];
+                this.collectTodos().then(collected => {
+                    const collectedLinks = [...collected.keys()];
 
-                this.app.workspace.openLinkText(collectedLinks[randomInt(collectedLinks.length)], '');
+                    this.app.workspace.openLinkText(collectedLinks[this.randomInt(collectedLinks.length)], '');
+                })
             }
         });
 
@@ -76,29 +69,25 @@ export default class MyPlugin extends Plugin {
             id: 'open-random-todo-item',
             name: 'Random Todo: Item',
             callback: () => {
-                const collected = this.collectTodos();
-                const collectedLinks = Array<[string, EditorPosition]>();
-                for (let [path, indexes] of collected) {
-                    for (let index of indexes) {
-                        collectedLinks.push([path, index]);
+                this.collectTodos().then(collected => {
+                    const collectedLinks = Array<[string, EditorPosition]>();
+                    for (let [path, indexes] of collected) {
+                        for (let index of indexes) {
+                            collectedLinks.push([path, index]);
+                        }
                     }
-                }
 
-                const pos = randomInt(collectedLinks.length);
-                const [link, index] = collectedLinks[pos];
-                this.app.workspace.openLinkText(link, '').then(() => {
-                    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-                    activeView.editor.setCursor(index);
-                });
+                    const pos = this.randomInt(collectedLinks.length);
+                    const [link, index] = collectedLinks[pos];
+                    this.app.workspace.openLinkText(link, '').then(() => {
+                        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+                        activeView.editor.setCursor(index);
+                    });
+                })
             }
         });
 
-        this.addSettingTab(new MyPluginSettingTab(this.app, this));
-
-        this.registerCodeMirror((cm: CodeMirror.Editor) => {
-            console.log('codemirror', cm);
-        });
-
+        this.addSettingTab(new RandomTodoPluginSettingTab(this.app, this));
     }
 
     onunload() {
@@ -114,10 +103,10 @@ export default class MyPlugin extends Plugin {
     }
 }
 
-class MyPluginSettingTab extends PluginSettingTab {
-    plugin: MyPlugin;
+class RandomTodoPluginSettingTab extends PluginSettingTab {
+    plugin: RandomTodoPlugin;
 
-    constructor(app: App, plugin: MyPlugin) {
+    constructor(app: App, plugin: RandomTodoPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }

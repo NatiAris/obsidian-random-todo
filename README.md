@@ -39,7 +39,3 @@ If you're going to change the pattern often, it might be a better fit
 
 I wanted something to minimize the number of clicks in my use case, so it didn't quite fit my needs  
 Having both is also an option
-
-### Possible issues
-
-I used allegedly mobile-incompatible `adapter.getBasePath()` so it likely won't work on mobile
