@@ -1,10 +1,10 @@
 {
-	"id": "obsidian-sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.1",
-	"minAppVersion": "0.9.12",
-	"description": "This is a sample plugin for Obsidian. This plugin demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md/about",
-	"isDesktopOnly": false
+	"id": "obsidian-random-todo",
+	"name": "Random To-Do",
+	"version": "0.1.0",
+	"minAppVersion": "0.12.10",
+	"description": "Open a random file containing your custom to-do marker, or a random marker at its position",
+	"author": "NatiAris",
+	"authorUrl": "https://github.com/NatiAris/",
+	"isDesktopOnly": true
 }

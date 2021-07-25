@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-sample-plugin",
+  "name": "obsidian-random-todo",
   "version": "0.12.0",
-  "description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+  "description": "This is Random To-Do Plugin for Obsidian (https://github.com/NatiAris/obsidian-random-todo)",
   "main": "main.js",
   "scripts": {
     "dev": "rollup --config rollup.config.js -w",

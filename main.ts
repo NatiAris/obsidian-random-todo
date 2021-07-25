@@ -1,112 +1,158 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import {App, EditorPosition, FileSystemAdapter, MarkdownView, Plugin, PluginSettingTab, Setting} from 'obsidian';
+import {readFileSync} from 'fs';
+import {randomInt} from "crypto";
+import * as path from "path";
 
 interface MyPluginSettings {
-	mySetting: string;
+    todoPattern: string;
+    showStatusBar: boolean;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+    todoPattern: '(^|\\s)\\.\\.\\.(\\s|$)',
+    showStatusBar: false
 }
 
 export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+    settings: MyPluginSettings;
+    statusBarItem: HTMLElement;
 
-	async onload() {
-		console.log('loading plugin');
+    collectTodos = (): Map<string, Array<EditorPosition>> => {
+        // return a map file name -> list of match positions
+        const markdownFiles = this.app.vault.getMarkdownFiles();
+        const collected = new Map<string, Array<EditorPosition>>(null);
 
-		await this.loadSettings();
+        if (this.app.vault.adapter instanceof FileSystemAdapter) {
+            let basePath = this.app.vault.adapter.getBasePath();
 
-		this.addRibbonIcon('dice', 'Sample Plugin', () => {
-			new Notice('This is a notice!');
-		});
+            for (const markdownFile of markdownFiles) {
+                const re = new RegExp(this.settings.todoPattern, 'g');
+                const fullPath = path.join(basePath, markdownFile.path);
+                const file = readFileSync(fullPath, 'utf-8');
+                const lines = file.split('\n');
+                const positions: Array<EditorPosition> = lines.map((value, index) => ({
+                    line: index,
+                    ch: value.search(re)
+                })).filter(value => value.ch != -1);
+                if (positions.length > 0) {
+                    collected.set(markdownFile.path, positions);
+                }
+            }
+        }
 
-		this.addStatusBarItem().setText('Status Bar Text');
+        return collected;
+    };
 
-		this.addCommand({
-			id: 'open-sample-modal',
-			name: 'Open Sample Modal',
-			// callback: () => {
-			// 	console.log('Simple Callback');
-			// },
-			checkCallback: (checking: boolean) => {
-				let leaf = this.app.workspace.activeLeaf;
-				if (leaf) {
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-					return true;
-				}
-				return false;
-			}
-		});
+    async onload() {
+        console.log('loading plugin');
 
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+        await this.loadSettings();
 
-		this.registerCodeMirror((cm: CodeMirror.Editor) => {
-			console.log('codemirror', cm);
-		});
+        if (this.settings.showStatusBar) {
+            this.statusBarItem = this.addStatusBarItem();
+            this.app.workspace.on("file-open", (file) => {
+                if (this.app.vault.adapter instanceof FileSystemAdapter) {
+                    let basePath = this.app.vault.adapter.getBasePath();
+                    const contents = readFileSync(basePath + '/' + file.path, 'utf-8');
+                    const N = [...contents.matchAll(new RegExp(this.settings.todoPattern, 'g'))].length;
+                    const text = N > 0 ? N + ' to-do items' : '';
+                    this.statusBarItem.setText(text);
+                }
+            })
+        }
 
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
+        this.addCommand({
+            id: 'open-random-todo-file',
+            name: 'Random Todo: File',
+            callback: () => {
+                const collected = this.collectTodos();
+                const collectedLinks = [...collected.keys()];
 
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-	}
+                this.app.workspace.openLinkText(collectedLinks[randomInt(collectedLinks.length)], '');
+            }
+        });
 
-	onunload() {
-		console.log('unloading plugin');
-	}
+        this.addCommand({
+            id: 'open-random-todo-item',
+            name: 'Random Todo: Item',
+            callback: () => {
+                const collected = this.collectTodos();
+                const collectedLinks = Array<[string, EditorPosition]>();
+                for (let [path, indexes] of collected) {
+                    for (let index of indexes) {
+                        collectedLinks.push([path, index]);
+                    }
+                }
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
+                const pos = randomInt(collectedLinks.length);
+                const [link, index] = collectedLinks[pos];
+                this.app.workspace.openLinkText(link, '').then(() => {
+                    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+                    activeView.editor.setCursor(index);
+                });
+            }
+        });
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+        this.addSettingTab(new MyPluginSettingTab(this.app, this));
+
+        this.registerCodeMirror((cm: CodeMirror.Editor) => {
+            console.log('codemirror', cm);
+        });
+
+    }
+
+    onunload() {
+        console.log('unloading plugin');
+    }
+
+    async loadSettings() {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    }
+
+    async saveSettings() {
+        await this.saveData(this.settings);
+    }
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+class MyPluginSettingTab extends PluginSettingTab {
+    plugin: MyPlugin;
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+    constructor(app: App, plugin: MyPlugin) {
+        super(app, plugin);
+        this.plugin = plugin;
+    }
 
-	onClose() {
-		let {contentEl} = this;
-		contentEl.empty();
-	}
-}
+    display(): void {
+        let {containerEl} = this;
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+        containerEl.empty();
 
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
+        containerEl.createEl('h2', {text: 'Settings for Random To-Do Plugin'});
 
-	display(): void {
-		let {containerEl} = this;
+        new Setting(containerEl)
+            .setName('To-do item pattern')
+            .setDesc('Regular expression which a to-do item should match')
+            .addText(text => text
+                .setPlaceholder(DEFAULT_SETTINGS.todoPattern)
+                .setValue(this.plugin.settings.todoPattern)
+                .onChange(async (value) => {
+                    this.plugin.settings.todoPattern = value;
+                    await this.plugin.saveSettings();
+                }));
 
-		containerEl.empty();
-
-		containerEl.createEl('h2', {text: 'Settings for my awesome plugin.'});
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue('')
-				.onChange(async (value) => {
-					console.log('Secret: ' + value);
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
+        new Setting(containerEl)
+            .setName('To-do item count view')
+            .setDesc('Show/hide todo count in Status Bar')
+            .addToggle(component => component
+                .setValue(this.plugin.settings.showStatusBar)
+                .onChange(async (value) => {
+                    if (value) {
+                        this.plugin.statusBarItem.show()
+                    } else {
+                        this.plugin.statusBarItem.hide()
+                    }
+                    this.plugin.settings.showStatusBar = value;
+                    await this.plugin.saveSettings();
+                }));
+    }
 }

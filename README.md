@@ -1,57 +1,45 @@
-## Obsidian Sample Plugin
+## Random To-Do Plugin for Obsidian
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+This is a plugin for Obsidian (https://obsidian.md).
 
-This project uses Typescript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in Typescript Definition format, which contains TSDoc comments describing what it does.
+### Terms and definitions
 
-**Note:** The Obsidian API is still in early alpha and is subject to change at any time!
+Let's say you leave a mark near actionable items in your notes, like `todo`, `...`, `???`, etc.  
+We'll call a single instance of such mark a **todo item**
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Changes the default font color to red using `styles.css`.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+### What does this plugin do?
 
-### First time developing plugins?
+Adds merely three things:
+1. A command that opens a random file with at least one *todo item*
+2. A command that opens a random *todo item* at its position in its file
+3. (optionally) A status bar counter
 
-Quick starting guide for new plugin devs:
-
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
-
-### Releasing new releases
-
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments.
-- Publish the release.
-
-### Adding your plugin to the community plugin list
-
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+When you use command (1) all *files* have equal weight  
+When you use command (2) all *items* have equal weight  
 
 ### How to use
 
-- Clone this repo.
-- `npm i` or `yarn` to install dependencies
-- `npm run dev` to start compilation in watch mode.
+1. **Go to plugin settings** and set your "todo" pattern (uses javascript regular expression format)  
+2. **Set hotkeys** for "Random Todo: File" and "Random Todo: Item"  
 
-### Manually installing the plugin
+The default pattern, an ellipsis, is what I use
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+---
 
-### API Documentation
+### What this plugin is for?
 
-See https://github.com/obsidianmd/obsidian-api
+Same as Open Random note core plugin, but with this one you will only land in files that have some unfinished business to them  
+With the core one I had to re-roll the dice way too many times to skip finished/actualized notes, hence this
+
+### See also
+
+You may also be interested in [Smart Random Note Plugin](https://github.com/erichalldev/obsidian-smart-random-note)  
+It has similar functional but focuses on different use cases  
+If you're going to change the pattern often, it might be a better fit
+
+I wanted something to minimize the number of clicks in my use case, so it didn't quite fit my needs  
+Having both is also an option
+
+### Possible issues
+
+I used allegedly mobile-incompatible `adapter.getBasePath()` so it likely won't work on mobile
