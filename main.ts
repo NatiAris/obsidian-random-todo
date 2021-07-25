@@ -1,4 +1,4 @@
-import {App, EditorPosition, MarkdownView, Plugin, PluginSettingTab, Setting} from 'obsidian';
+import {App, EditorPosition, MarkdownView, Plugin, PluginSettingTab, Setting, TFile} from 'obsidian';
 
 interface RandomTodoPluginSettings {
     todoPattern: string;
@@ -13,27 +13,49 @@ const DEFAULT_SETTINGS: RandomTodoPluginSettings = {
 export default class RandomTodoPlugin extends Plugin {
     settings: RandomTodoPluginSettings;
     statusBarItem: HTMLElement;
+    todoPattern: RegExp;
+    // file name -> (last updated, positions of todos)
+    fileCache = new Map<string, [number, Array<EditorPosition>]>(null);
 
-    collectTodos = async (): Promise<Map<string, Array<EditorPosition>>> => {
-        // return a map file name -> list of match positions
+    getRandomFileWithTodo = async (): Promise<string> => {
         const markdownFiles = this.app.vault.getMarkdownFiles();
-        const collected = new Map<string, Array<EditorPosition>>(null);
-
+        markdownFiles.shuffle();
         for (const markdownFile of markdownFiles) {
-            const re = new RegExp(this.settings.todoPattern, 'g');
-            const contents = await this.app.vault.cachedRead(markdownFile)
-            const lines = contents.split('\n');
-            const positions: Array<EditorPosition> = lines.map((value, index) => ({
-                line: index,
-                ch: value.search(re)
-            })).filter(value => value.ch != -1);
+            const positions = await this.collectTodosFromFile(markdownFile);
             if (positions.length > 0) {
-                collected.set(markdownFile.path, positions);
+                return markdownFile.path;
+            }
+        }
+    }
+
+    getRandomTodoItem = async (): Promise<[string, EditorPosition]> => {
+        const markdownFiles = this.app.vault.getMarkdownFiles();
+        const collectedLinks = Array<[string, EditorPosition]>();
+        for (const markdownFile of markdownFiles) {
+            const positions = await this.collectTodosFromFile(markdownFile);
+            for (const position of positions) {
+                collectedLinks.push([markdownFile.path, position])
             }
         }
 
-        return collected;
-    };
+        const pos = this.randomInt(collectedLinks.length);
+        return collectedLinks[pos];
+    }
+
+    collectTodosFromFile = async (file: TFile): Promise<Array<EditorPosition>> => {
+        const [mtime, cachedPositions] = this.fileCache.get(file.path) || [0, null];
+        if (mtime < file.stat.mtime) {
+            const contents = await this.app.vault.cachedRead(file);
+            const lines = contents.split('\n');
+            const positions: Array<EditorPosition> = lines.map((value, index) => ({
+                line: index,
+                ch: value.search(this.todoPattern)
+            })).filter(value => value.ch != -1);
+            this.fileCache.set(file.path, [file.stat.mtime, positions])
+            return positions;
+        }
+        return cachedPositions;
+    }
 
     randomInt = (max: number) => Math.floor(Math.random() * max);
 
@@ -42,11 +64,13 @@ export default class RandomTodoPlugin extends Plugin {
 
         await this.loadSettings();
 
+        this.todoPattern = new RegExp(this.settings.todoPattern, 'g');
+
         if (this.settings.showStatusBar) {
             this.statusBarItem = this.addStatusBarItem();
             this.app.workspace.on("file-open", (file) => {
                 this.app.vault.cachedRead(file).then(contents => {
-                    const N = [...contents.matchAll(new RegExp(this.settings.todoPattern, 'g'))].length;
+                    const N = [...contents.matchAll(this.todoPattern)].length;
                     const text = N > 0 ? N + ' to-do items' : '';
                     this.statusBarItem.setText(text);
                 })
@@ -57,10 +81,8 @@ export default class RandomTodoPlugin extends Plugin {
             id: 'open-random-todo-file',
             name: 'Random Todo: File',
             callback: () => {
-                this.collectTodos().then(collected => {
-                    const collectedLinks = [...collected.keys()];
-
-                    this.app.workspace.openLinkText(collectedLinks[this.randomInt(collectedLinks.length)], '');
+                this.getRandomFileWithTodo().then(link => {
+                    this.app.workspace.openLinkText(link, '');
                 })
             }
         });
@@ -69,19 +91,9 @@ export default class RandomTodoPlugin extends Plugin {
             id: 'open-random-todo-item',
             name: 'Random Todo: Item',
             callback: () => {
-                this.collectTodos().then(collected => {
-                    const collectedLinks = Array<[string, EditorPosition]>();
-                    for (let [path, indexes] of collected) {
-                        for (let index of indexes) {
-                            collectedLinks.push([path, index]);
-                        }
-                    }
-
-                    const pos = this.randomInt(collectedLinks.length);
-                    const [link, index] = collectedLinks[pos];
+                this.getRandomTodoItem().then(([link, position]) => {
                     this.app.workspace.openLinkText(link, '').then(() => {
-                        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-                        activeView.editor.setCursor(index);
+                        this.app.workspace.getActiveViewOfType(MarkdownView).editor.setCursor(position);
                     });
                 })
             }
