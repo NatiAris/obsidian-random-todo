@@ -74,7 +74,14 @@ export default class RandomTodoPlugin extends Plugin {
                     const text = N > 0 ? N + ' to-do items' : '';
                     this.statusBarItem.setText(text);
                 })
-            })
+            });
+            this.app.vault.on("modify", (file: TFile) => {
+                this.app.vault.cachedRead(file).then(contents => {
+                    const N = [...contents.matchAll(this.todoPattern)].length;
+                    const text = N > 0 ? N + ' to-do items' : '';
+                    this.statusBarItem.setText(text);
+                })
+            });
         }
 
         this.addCommand({
