@@ -44,7 +44,7 @@ export default class RandomTodoPlugin extends Plugin {
 
     collectTodosFromFile = async (file: TFile): Promise<Array<EditorPosition>> => {
         const [mtime, cachedPositions] = this.fileCache.get(file.path) || [0, null];
-        if (mtime < file.stat.mtime) {
+        if (!cachedPositions && mtime !== file.stat.mtime) {
             const contents = await this.app.vault.cachedRead(file);
             const lines = contents.split('\n');
             const positions: Array<EditorPosition> = lines.map((value, index) => ({
